@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Together Hub | Ultimate Master Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --bg-deep: #050810;
+            --bg-card: #0f172a;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-deep);
+            color: #f1f5f9;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tối ưu hóa Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Video Grid tinh chỉnh */
+        #video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            padding: 1.5rem;
+            width: 100%;
+            height: 100%;
+            align-content: center;
+            overflow-y: auto;
+        }
+
+        .video-container {
+            position: relative;
+            aspect-ratio: 16/9;
+            background: var(--bg-card);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid transparent;
+        }
+
+        .video-container.speaking { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror hiệu ứng cho webcam */
+        }
+
+        /* Overlay khi tắt camera */
+        .camera-off-overlay {
+            position: absolute; inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            z-index: 10;
+        }
+        .is-cam-off .camera-off-overlay { display: flex; }
+
+        .glass {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Bảng trắng (Whiteboard) */
+        #whiteboard-container {
+            position: absolute;
+            inset: 20px;
+            background: white;
+            border-radius: 24px;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+        }
+
+        canvas#whiteboard {
+            flex: 1;
+            cursor: crosshair;
+            background: #ffffff;
+            border-radius: 0 0 24px 24px;
+        }
+
+        /* Hiệu ứng chuyển cảnh cho Sidebar */
+        .sidebar-transition {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Tooltip & Controls */
+        .control-btn {
+            @apply p-4 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-xl;
+        }
+
+        /* Lớp phủ màn hình chờ */
+        #lobby-screen {
+            background: radial-gradient(circle at top right, #0f172a, #050810);
+        }
+
+        .pomo-pulse {
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="lobby-screen" class="fixed inset-0 z-[2000] flex items-center justify-center">
+        <div class="glass p-12 rounded-[3rem] w-full max-w-lg border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)]">
+            <div class="flex flex-col items-center text-center mb-10">
+                <div class="w-20 h-20 bg-gradient-to-tr from-sky-600 to-indigo-600 rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-sky-500/20">
+                    <i data-lucide="graduation-cap" class="w-10 h-10 text-white"></i>
+                </div>
+                <h1 class="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Study Hub Master</h1>
+                <p class="text-slate-400 mt-2 font-medium">Hệ thống học tập P2P Mesh nâng cao</p>
+            </div>
+
+            <div class="space-y-6">
+                <div class="group">
+                    <label class="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 ml-1">Tên của bạn</label>
+                    <input id="user-name" type="text" placeholder="Ví dụ: Anh Dev" class="w-full bg-slate-900/50 border border-slate-700/50 p-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-semibold">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 pt-4">
+                    <button onclick="handleSessionInit(true)" class="bg-sky-600 hover:bg-sky-500 py-4 rounded-2xl font-bold flex flex-col items-center gap-1 transition-all group">
+                        <i data-lucide="plus-circle" class="w-6 h-6 group-hover:rotate-90 transition-transform"></i>
+                        <span>Tạo phòng học</span>
+                    </button>
+                    <div class="flex flex-col gap-2">
+                        <input id="target-room-id" type="text" placeholder="ID Phòng..." class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl focus:outline-none text-center font-mono">
+                        <button onclick="handleSessionInit(false)" class="bg-slate-700 hover:bg-slate-600 py-2 rounded-xl font-bold flex items-center justify-center gap-2">
+                            <i data-lucide="log-in" class="w-4 h-4"></i> Tham gia
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-12 flex justify-center gap-6 text-slate-500">
+                <div class="flex items-center gap-2 text-xs"><i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i> P2P Encrypted</div>
+                <div class="flex items-center gap-2 text-xs"><i data-lucide="zap" class="w-4 h-4 text-yellow-500"></i> Zero Server</div>
+            </div>
+        </div>
+    </div>
+
+    <header class="h-20 px-8 flex items-center justify-between glass z-50 border-b border-white/5">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-sky-500 rounded-xl shadow-lg shadow-sky-500/20">
+                    <i data-lucide="box" class="w-5 h-5 text-white"></i>
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-bold text-lg tracking-tight leading-none">STUDY HUB</span>
+                    <span id="display-room-id" class="text-[10px] font-mono text-slate-500 uppercase tracking-tighter">PHÒNG: ---</span>
+                </div>
+            </div>
+
+            <div id="pomo-wrapper" class="flex items-center bg-black/40 rounded-2xl p-1 pr-4 border border-white/5">
+                <div id="pomo-timer-container" class="px-4 py-2 bg-slate-800 rounded-xl flex flex-col items-center min-w-[100px] transition-colors duration-500">
+                    <span id="pomo-label" class="text-[8px] font-black tracking-widest uppercase text-slate-400">HỌC TẬP</span>
+                    <span id="pomo-time" class="text-2xl font-mono font-bold leading-none mt-1">25:00</span>
+                </div>
+                
+                <div id="host-pomo-controls" class="hidden flex items-center gap-3 ml-4">
+                    <div class="flex gap-4">
+                        <div class="flex flex-col items-center">
+                            <span class="text-[8px] text-slate-500 font-bold mb-1">HỌC</span>
+                            <input type="number" id="cfg-study" value="25" class="w-8 bg-transparent text-sm font-bold text-sky-400 focus:outline-none text-center">
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[8px] text-slate-500 font-bold mb-1">NGHỈ</span>
+                            <input type="number" id="cfg-break" value="5" class="w-8 bg-transparent text-sm font-bold text-green-400 focus:outline-none text-center">
+                        </div>
+                    </div>
+                    <button onclick="toggleTimer()" id="pomo-action-btn" class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center hover:bg-sky-500 shadow-lg shadow-sky-600/20 transition-all">
+                        <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                    </button>
+                    <button onclick="syncTimerToAll()" class="p-2 text-slate-500 hover:text-white" title="Đồng bộ lại">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-slate-800/40 px-4 py-2 rounded-2xl gap-3 border border-white/5">
+                <button id="rain-toggle" onclick="toggleRainSound()" class="text-slate-400 hover:text-sky-400 transition-colors">
+                    <i data-lucide="cloud-rain" class="w-5 h-5"></i>
+                </button>
+                <input type="range" id="rain-vol" min="0" max="1" step="0.05" value="0.3" class="w-16 accent-sky-500 bg-slate-700 h-1 rounded-full appearance-none">
+            </div>
+
+            <button onclick="openWhiteboard()" class="p-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 rounded-xl border border-indigo-500/20" title="Bảng trắng">
+                <i data-lucide="pencil" class="w-5 h-5"></i>
+            </button>
+            <button onclick="toggleSidebar('participants')" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl relative">
+                <i data-lucide="users" class="w-5 h-5"></i>
+                <span id="user-count" class="absolute -top-1 -right-1 bg-sky-500 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">1</span>
+            </button>
+            <button onclick="toggleSidebar('chat')" class="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl relative">
+                <i data-lucide="message-circle" class="w-5 h-5"></i>
+                <span id="chat-notif" class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full hidden"></span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <div class="flex-1 relative flex flex-col items-center justify-center">
+            
+            <div id="video-grid">
+                <div id="local-video-container" class="video-container group border-sky-500/30">
+                    <div class="camera-off-overlay">
+                        <div id="local-avatar" class="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-3xl font-extrabold shadow-2xl border-2 border-white/10">?</div>
+                        <span class="mt-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Camera Tắt</span>
+                    </div>
+                    <video id="local-video" autoplay muted playsinline></video>
+                    <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center pointer-events-none">
+                        <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-2 border border-white/10">
+                            <div id="local-mic-indicator" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-xs font-bold">Bạn (Tôi)</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <span id="local-tag-host" class="hidden bg-yellow-500 text-black text-[8px] font-black px-2 py-1 rounded-md uppercase">Chủ phòng</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="whiteboard-container" class="shadow-2xl">
+                <div class="p-4 bg-slate-900 flex justify-between items-center border-b border-white/5 rounded-t-2xl">
+                    <div class="flex items-center gap-4">
+                        <span class="font-bold flex items-center gap-2 text-indigo-400"><i data-lucide="pencil-line" class="w-4 h-4"></i> BẢNG TRẮNG CHUNG</span>
+                        <div class="flex gap-2 bg-slate-800 p-1 rounded-lg">
+                            <button onclick="setPenColor('#38bdf8')" class="w-6 h-6 rounded bg-sky-400"></button>
+                            <button onclick="setPenColor('#ef4444')" class="w-6 h-6 rounded bg-red-500"></button>
+                            <button onclick="setPenColor('#22c55e')" class="w-6 h-6 rounded bg-green-500"></button>
+                            <button onclick="setPenColor('#ffffff')" class="w-6 h-6 rounded bg-white"></button>
+                        </div>
+                        <input type="range" id="pen-size" min="1" max="10" value="3" class="w-20 accent-indigo-500">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="clearWhiteboard()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg transition">XÓA BẢNG</button>
+                        <button onclick="closeWhiteboard()" class="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+                <canvas id="whiteboard"></canvas>
+            </div>
+
+            <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 px-8 py-5 rounded-[2.5rem] glass border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[150]">
+                <button onclick="handleMicToggle()" id="mic-btn" class="control-btn bg-slate-800 hover:bg-slate-700 border border-white/5 group">
+                    <i data-lucide="mic" id="mic-icon" class="w-6 h-6 text-slate-300 group-hover:text-white"></i>
+                </button>
+                <button onclick="handleCamToggle()" id="cam-btn" class="control-btn bg-slate-800 hover:bg-slate-700 border border-white/5 group">
+                    <i data-lucide="video" id="cam-icon" class="w-6 h-6 text-slate-300 group-hover:text-white"></i>
+                </button>
+                <button onclick="handleScreenShare()" id="screen-btn" class="control-btn bg-slate-800 hover:bg-slate-700 border border-white/5 group" title="Chia sẻ màn hình">
+                    <i data-lucide="monitor-up" class="w-6 h-6 text-slate-300 group-hover:text-sky-400"></i>
+                </button>
+                <div class="w-[1px] h-8 bg-slate-700 mx-2"></div>
+                <button onclick="handleLeaveRoom()" class="control-btn bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20 group">
+                    <i data-lucide="phone-off" class="w-6 h-6 text-white group-hover:scale-110 transition-transform"></i>
+                </button>
+            </div>
+        </div>
+
+        <aside id="main-sidebar" class="sidebar-transition w-[380px] glass border-l border-white/5 flex flex-col">
+            
+            <div class="flex border-b border-white/5">
+                <button onclick="switchTab('chat')" id="tab-chat-btn" class="flex-1 p-4 text-xs font-black tracking-widest uppercase border-b-2 border-sky-500 bg-sky-500/5 text-sky-400">Thảo luận</button>
+                <button onclick="switchTab('todo')" id="tab-todo-btn" class="flex-1 p-4 text-xs font-black tracking-widest uppercase border-b-2 border-transparent text-slate-500">Mục tiêu</button>
+                <button onclick="switchTab('users')" id="tab-users-btn" class="flex-1 p-4 text-xs font-black tracking-widest uppercase border-b-2 border-transparent text-slate-500">Bạn học</button>
+            </div>
+
+            <div id="tab-chat" class="flex-1 flex flex-col p-6 overflow-hidden">
+                <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+                    <div class="bg-slate-800/50 p-4 rounded-2xl border border-white/5 italic text-slate-400 text-xs text-center">Chào mừng bạn đến Study Hub Master. Hệ thống P2P đã sẵn sàng.</div>
+                </div>
+                <form id="chat-form" class="relative group">
+                    <input id="chat-input" type="text" placeholder="Gửi lời nhắn..." class="w-full bg-slate-800/50 border border-white/10 rounded-2xl px-5 py-4 pr-14 focus:outline-none focus:border-sky-500 transition-all font-medium text-sm">
+                    <button type="submit" class="absolute right-2 top-2 p-2 bg-sky-600 rounded-xl hover:bg-sky-500 text-white transition-all">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div id="tab-todo" class="hidden flex-1 flex flex-col p-6 overflow-hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-slate-300">NHIỆM VỤ NHÓM</h3>
+                    <span id="todo-stats" class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-500">0/0</span>
+                </div>
+                <div id="todo-list" class="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
+                    </div>
+                <div class="flex gap-2">
+                    <input id="todo-input" type="text" placeholder="Thêm mục tiêu mới..." class="flex-1 bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none">
+                    <button onclick="addNewTodo()" class="p-2 bg-indigo-600 rounded-xl hover:bg-indigo-500 transition-all"><i data-lucide="plus" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+
+            <div id="tab-users" class="hidden flex-1 flex flex-col p-6 overflow-hidden">
+                <h3 class="font-bold text-slate-300 mb-6 flex items-center gap-2">
+                    THÀNH VIÊN TRONG PHÒNG
+                    <span id="p-count-badge" class="bg-sky-500/20 text-sky-400 text-[10px] px-2 py-0.5 rounded-full">1</span>
+                </h3>
+                <div id="participant-list" class="space-y-4">
+                    <div class="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-sky-500 rounded-full flex items-center justify-center font-bold text-xs">BẠN</div>
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold" id="me-name-list">Chưa đặt tên</span>
+                                <span class="text-[10px] text-slate-500 italic">Đang online</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <i data-lucide="mic" class="w-3 h-3 text-green-500"></i>
+                            <i data-lucide="video" class="w-3 h-3 text-green-500"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <footer class="h-8 bg-black/80 flex items-center px-8 border-t border-white/5 justify-between">
+        <div class="flex gap-6 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+            <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> TỔNG THỜI GIAN HỌC: <span id="total-study-time" class="text-sky-500">0P</span></span>
+            <span class="flex items-center gap-1"><i data-lucide="activity" class="w-3 h-3 text-green-500"></i> P2P MESH STABLE</span>
+        </div>
+        <div class="text-[9px] text-slate-700 italic">Developed by Gemini Hub Engine &copy; 2024</div>
+    </footer>
+
+    <audio id="snd-rain" loop src="https://www.soundjay.com/nature/rain-01.mp3"></audio>
+    <audio id="snd-alert" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <script>
+        /**
+         * GLOBAL STATE
+         */
+        let myPeer, myStream, myScreenStream, myId;
+        let myUserName = "User_" + Math.floor(Math.random()*1000);
+        let isHost = false;
+        let activeTab = 'chat';
+        
+        const peerConnections = {}; // Lưu trữ các cuộc gọi (MediaStream)
+        const dataConnections = {}; // Lưu trữ các kênh dữ liệu (DataChannel)
+        const participants = {};    // Thông tin metadata về thành viên
+
+        // Pomodoro State
+        let timerSeconds = 25 * 60;
+        let timerInterval = null;
+        let currentMode = 'study'; // 'study' | 'break'
+        let totalFocusMinutes = 0;
+
+        // Whiteboard State
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let penColor = '#38bdf8';
+        let penSize = 3;
+
+        // To-do State
+        let todos = [];
+
+        /**
+         * 1. HỆ THỐNG KHỞI TẠO (INIT)
+         */
+        async function handleSessionInit(asHost) {
+            const inputName = document.getElementById('user-name').value.trim();
+            if(!inputName) return alert("Vui lòng nhập tên!");
+            
+            myUserName = inputName;
+            isHost = asHost;
+            document.getElementById('me-name-list').innerText = myUserName;
+            document.getElementById('local-avatar').innerText = myUserName.substring(0,2).toUpperCase();
+            if(isHost) document.getElementById('local-tag-host').classList.remove('hidden');
+
+            try {
+                // Lấy quyền webcam/mic trước khi kết nối Peer
+                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = myStream;
+                
+                const roomId = isHost ? generateId() : document.getElementById('target-room-id').value.trim();
+                if(!roomId && !isHost) return alert("Vui lòng nhập ID phòng!");
+
+                initPeer(isHost ? roomId : null);
+            } catch (err) {
+                console.error(err);
+                alert("Lỗi camera/micro: " + err.message);
+            }
+        }
+
+        function generateId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function initPeer(id) {
+            myPeer = new Peer(id, {
+                host: '0.peerjs.com',
+                port: 443,
+                secure: true,
+                debug: 1
+            });
+
+            myPeer.on('open', (id) => {
+                myId = id;
+                document.getElementById('display-room-id').innerText = `PHÒNG: ${id}`;
+                document.getElementById('lobby-screen').style.display = 'none';
+                if(isHost) {
+                    document.getElementById('host-pomo-controls').classList.remove('hidden');
+                    updateParticipant(myId, myUserName, true, true, true);
+                } else {
+                    connectToHost(document.getElementById('target-room-id').value.trim());
+                }
+                refreshIcons();
+            });
+
+            // Lắng nghe cuộc gọi (Media)
+            myPeer.on('call', call => {
+                call.answer(myStream);
+                setupMediaConnection(call);
+            });
+
+            // Lắng nghe kết nối dữ liệu (Data)
+            myPeer.on('connection', conn => {
+                setupDataConnection(conn);
+            });
+            
+            myPeer.on('error', err => {
+                console.error("Peer Error:", err.type);
+                if(err.type === 'peer-unavailable') alert("Phòng không tồn tại!");
+            });
+        }
+
+        /**
+         * 2. XỬ LÝ KẾT NỐI (NETWORKING)
+         */
+        function connectToHost(hostId) {
+            // 1. Gọi video
+            const call = myPeer.call(hostId, myStream);
+            setupMediaConnection(call);
+            
+            // 2. Kết nối dữ liệu
+            const conn = myPeer.connect(hostId);
+            setupDataConnection(conn);
+        }
+
+        function setupMediaConnection(call) {
+            const peerId = call.peer;
+            peerConnections[peerId] = call;
+
+            const video = document.createElement('video');
+            const container = document.createElement('div');
+            container.className = "video-container";
+            container.id = `v-container-${peerId}`;
+            container.innerHTML = `
+                <div class="camera-off-overlay">
+                    <div class="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-3xl font-extrabold shadow-2xl border-2 border-white/10" id="avatar-${peerId}">?</div>
+                    <span class="mt-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Camera Tắt</span>
+                </div>
+                <div class="absolute bottom-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 z-20">
+                    <div id="mic-ind-${peerId}" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span class="text-xs font-bold" id="name-${peerId}">Đang tải...</span>
+                </div>
+            `;
+            container.appendChild(video);
+
+            call.on('stream', remoteStream => {
+                video.srcObject = remoteStream;
+                video.autoplay = true;
+                video.playsinline = true;
+                document.getElementById('video-grid').appendChild(container);
+            });
+
+            call.on('close', () => {
+                container.remove();
+                delete peerConnections[peerId];
+                removeParticipant(peerId);
+            });
+        }
+
+        function setupDataConnection(conn) {
+            const peerId = conn.peer;
+            dataConnections[peerId] = conn;
+
+            conn.on('open', () => {
+                // Gửi thông tin cá nhân của mình cho người mới kết nối
+                sendToPeer(peerId, {
+                    type: 'identity',
+                    name: myUserName,
+                    mic: myStream.getAudioTracks()[0].enabled,
+                    cam: myStream.getVideoTracks()[0].enabled
+                });
+
+                if(isHost) {
+                    // Nếu là host, gửi toàn bộ trạng thái phòng cho người mới
+                    sendToPeer(peerId, {
+                        type: 'full-sync',
+                        timer: timerSeconds,
+                        mode: currentMode,
+                        todos: todos,
+                        participants: participants
+                    });
+                }
+            });
+
+            conn.on('data', data => handleIncomingData(peerId, data));
+            
+            conn.on('close', () => {
+                delete dataConnections[peerId];
+                removeParticipant(peerId);
+            });
+        }
+
+        /**
+         * 3. XỬ LÝ DỮ LIỆU ĐẾN (DATA PROTOCOL)
+         */
+        function handleIncomingData(peerId, data) {
+            switch(data.type) {
+                case 'identity':
+                    updateParticipant(peerId, data.name, data.mic, data.cam);
+                    break;
+                case 'chat':
+                    appendMessage(data.user, data.msg);
+                    break;
+                case 'pomo-sync':
+                    timerSeconds = data.timer;
+                    currentMode = data.mode;
+                    updateTimerUI();
+                    break;
+                case 'full-sync':
+                    timerSeconds = data.timer;
+                    currentMode = data.mode;
+                    todos = data.todos;
+                    Object.assign(participants, data.participants);
+                    renderParticipants();
+                    renderTodos();
+                    updateTimerUI();
+                    break;
+                case 'draw':
+                    drawOnCanvas(data.x, data.y, data.color, data.size, data.isNewPath);
+                    break;
+                case 'clear-wb':
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    break;
+                case 'todo-update':
+                    todos = data.todos;
+                    renderTodos();
+                    break;
+                case 'mic-cam-status':
+                    updateParticipantStatus(peerId, data.mic, data.cam);
+                    break;
+            }
+        }
+
+        function broadcast(payload) {
+            Object.values(dataConnections).forEach(conn => conn.send(payload));
+        }
+
+        function sendToPeer(peerId, payload) {
+            if(dataConnections[peerId]) dataConnections[peerId].send(payload);
+        }
+
+        /**
+         * 4. QUẢN LÝ THÀNH VIÊN (PARTICIPANTS)
+         */
+        function updateParticipant(id, name, mic, cam, local = false) {
+            participants[id] = { name, mic, cam, local };
+            renderParticipants();
+            
+            // Cập nhật nhãn tên trên video
+            const nameLabel = document.getElementById(`name-${id}`);
+            if(nameLabel) nameLabel.innerText = name;
+            
+            const avatarLabel = document.getElementById(`avatar-${id}`);
+            if(avatarLabel) avatarLabel.innerText = name.substring(0,2).toUpperCase();
+
+            // Cập nhật trạng thái hiển thị
+            updateParticipantStatus(id, mic, cam);
+        }
+
+        function updateParticipantStatus(id, mic, cam) {
+            if(participants[id]) {
+                participants[id].mic = mic;
+                participants[id].cam = cam;
+            }
+
+            const micInd = document.getElementById(id === myId ? 'local-mic-indicator' : `mic-ind-${id}`);
+            if(micInd) micInd.className = `w-2 h-2 rounded-full ${mic ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`;
+
+            const container = document.getElementById(id === myId ? 'local-video-container' : `v-container-${id}`);
+            if(container) {
+                if(!cam) container.classList.add('is-cam-off');
+                else container.classList.remove('is-cam-off');
+            }
+            renderParticipants();
+        }
+
+        function removeParticipant(id) {
+            delete participants[id];
+            renderParticipants();
+        }
+
+        function renderParticipants() {
+            const list = document.getElementById('participant-list');
+            const pCount = Object.keys(participants).length;
+            document.getElementById('user-count').innerText = pCount;
+            document.getElementById('p-count-badge').innerText = pCount;
+            
+            list.innerHTML = '';
+            Object.keys(participants).forEach(id => {
+                const p = participants[id];
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5";
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 ${id === myId ? 'bg-sky-500' : 'bg-slate-700'} rounded-full flex items-center justify-center font-bold text-xs uppercase">
+                            ${p.name.substring(0,2)}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold">${p.name} ${id === myId ? '(Bạn)' : ''}</span>
+                            <span class="text-[10px] text-slate-500 italic">${id === myId ? 'Đang điều khiển' : 'Đang học'}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <i data-lucide="mic${p.mic ? '' : '-off'}" class="w-3.5 h-3.5 ${p.mic ? 'text-green-500' : 'text-red-500'}"></i>
+                        <i data-lucide="video${p.cam ? '' : '-off'}" class="w-3.5 h-3.5 ${p.cam ? 'text-green-500' : 'text-red-500'}"></i>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+            refreshIcons();
+        }
+
+        /**
+         * 5. POMODORO ENGINE
+         */
+        function toggleTimer() {
+            if(!isHost) return;
+            const btn = document.getElementById('pomo-action-btn');
+            
+            if(timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                btn.innerHTML = '<i data-lucide="play" class="w-5 h-5 fill-current"></i>';
+            } else {
+                applyPomoConfig();
+                timerInterval = setInterval(() => {
+                    timerSeconds--;
+                    if(timerSeconds <= 0) {
+                        handleTimerEnd();
+                    }
+                    updateTimerUI();
+                    broadcast({ type: 'pomo-sync', timer: timerSeconds, mode: currentMode });
+                    
+                    // Thống kê thời gian tập trung
+                    if(currentMode === 'study' && timerSeconds % 60 === 0) {
+                        totalFocusMinutes++;
+                        document.getElementById('total-study-time').innerText = totalFocusMinutes + "P";
+                    }
+                }, 1000);
+                btn.innerHTML = '<i data-lucide="pause" class="w-5 h-5 fill-current"></i>';
+            }
+            refreshIcons();
+        }
+
+        function applyPomoConfig() {
+            const studyVal = parseInt(document.getElementById('cfg-study').value);
+            const breakVal = parseInt(document.getElementById('cfg-break').value);
+            
+            // Nếu timer đang ở trạng thái bắt đầu của mode hiện tại thì mới update
+            // (Ngăn việc nhảy thời gian khi đang đếm dở)
+            // Tuy nhiên, để linh hoạt, ta cho phép đồng bộ ngay
+            // timerSeconds = (currentMode === 'study') ? studyVal * 60 : breakVal * 60;
+        }
+
+        function handleTimerEnd() {
+            document.getElementById('snd-alert').play();
+            if(currentMode === 'study') {
+                currentMode = 'break';
+                timerSeconds = parseInt(document.getElementById('cfg-break').value) * 60;
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                appendMessage("Hệ thống", "🎉 Đã đến giờ nghỉ ngơi! Hãy vươn vai một chút.");
+            } else {
+                currentMode = 'study';
+                timerSeconds = parseInt(document.getElementById('cfg-study').value) * 60;
+                appendMessage("Hệ thống", "📚 Quay lại học thôi nào các bạn ơi!");
+            }
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(timerSeconds / 60);
+            const s = timerSeconds % 60;
+            const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
+            document.getElementById('pomo-time').innerText = timeStr;
+            
+            const label = document.getElementById('pomo-label');
+            const container = document.getElementById('pomo-timer-container');
+            
+            if(currentMode === 'study') {
+                label.innerText = "HỌC TẬP";
+                label.className = "text-[8px] font-black tracking-widest uppercase text-sky-400";
+                container.classList.remove('pomo-pulse', 'border-green-500/50');
+            } else {
+                label.innerText = "NGHỈ GIẢI LAO";
+                label.className = "text-[8px] font-black tracking-widest uppercase text-green-400";
+                container.classList.add('pomo-pulse');
+            }
+        }
+
+        function syncTimerToAll() {
+            if(!isHost) return;
+            const studyVal = parseInt(document.getElementById('cfg-study').value);
+            timerSeconds = studyVal * 60;
+            currentMode = 'study';
+            updateTimerUI();
+            broadcast({ type: 'pomo-sync', timer: timerSeconds, mode: currentMode });
+        }
+
+        /**
+         * 6. WHITEBOARD LOGIC (DÙNG CHUNG)
+         */
+        function openWhiteboard() {
+            const wb = document.getElementById('whiteboard-container');
+            wb.style.display = 'flex';
+            resizeCanvas();
+        }
+
+        function closeWhiteboard() {
+            document.getElementById('whiteboard-container').style.display = 'none';
+        }
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight - 60;
+        }
+
+        function setPenColor(color) { penColor = color; }
+        document.getElementById('pen-size').oninput = (e) => { penSize = e.target.value; };
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function startDrawing(e) {
+            isDrawing = true;
+            draw(e, true);
+        }
+
+        function draw(e, isNewPath = false) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            drawOnCanvas(x, y, penColor, penSize, isNewPath);
+            broadcast({ type: 'draw', x, y, color: penColor, size: penSize, isNewPath });
+        }
+
+        function drawOnCanvas(x, y, color, size, isNewPath) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (isNewPath) {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        }
+
+        function stopDrawing() { isDrawing = false; }
+
+        function clearWhiteboard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            broadcast({ type: 'clear-wb' });
+        }
+
+        /**
+         * 7. TO-DO LIST (DÙNG CHUNG)
+         */
+        function addNewTodo() {
+            const input = document.getElementById('todo-input');
+            if(!input.value) return;
+            
+            const newTodo = {
+                id: Date.now(),
+                text: input.value,
+                done: false,
+                by: myUserName
+            };
+            
+            todos.push(newTodo);
+            input.value = '';
+            renderTodos();
+            broadcast({ type: 'todo-update', todos: todos });
+        }
+
+        function toggleTodo(id) {
+            todos = todos.map(t => t.id === id ? {...t, done: !t.done} : t);
+            renderTodos();
+            broadcast({ type: 'todo-update', todos: todos });
+        }
+
+        function renderTodos() {
+            const list = document.getElementById('todo-list');
+            list.innerHTML = '';
+            let doneCount = 0;
+
+            todos.forEach(t => {
+                if(t.done) doneCount++;
+                const item = document.createElement('div');
+                item.className = `flex items-center gap-3 p-3 rounded-xl border transition-all ${t.done ? 'bg-green-500/10 border-green-500/20' : 'bg-white/5 border-white/5'}`;
+                item.innerHTML = `
+                    <button onclick="toggleTodo(${t.id})" class="w-5 h-5 rounded border-2 flex items-center justify-center ${t.done ? 'bg-green-500 border-green-500' : 'border-slate-600'}">
+                        ${t.done ? '<i data-lucide="check" class="w-3 h-3 text-white"></i>' : ''}
+                    </button>
+                    <div class="flex flex-col flex-1">
+                        <span class="text-sm ${t.done ? 'line-through text-slate-500' : 'text-slate-200'}">${t.text}</span>
+                        <span class="text-[8px] text-slate-600 uppercase font-bold">Thêm bởi: ${t.by}</span>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+            
+            document.getElementById('todo-stats').innerText = `${doneCount}/${todos.length}`;
+            refreshIcons();
+        }
+
+        /**
+         * 8. MEDIA CONTROLS (MIC/CAM/SCREEN)
+         */
+        function handleMicToggle() {
+            const track = myStream.getAudioTracks()[0];
+            track.enabled = !track.enabled;
+            
+            const btn = document.getElementById('mic-btn');
+            const icon = document.getElementById('mic-icon');
+            
+            btn.classList.toggle('bg-red-500', !track.enabled);
+            btn.classList.toggle('bg-slate-800', track.enabled);
+            icon.setAttribute('data-lucide', track.enabled ? 'mic' : 'mic-off');
+            
+            updateParticipantStatus(myId, track.enabled, myStream.getVideoTracks()[0].enabled);
+            broadcast({ type: 'mic-cam-status', mic: track.enabled, cam: myStream.getVideoTracks()[0].enabled });
+            refreshIcons();
+        }
+
+        function handleCamToggle() {
+            const track = myStream.getVideoTracks()[0];
+            track.enabled = !track.enabled;
+            
+            const btn = document.getElementById('cam-btn');
+            const icon = document.getElementById('cam-icon');
+            
+            btn.classList.toggle('bg-red-500', !track.enabled);
+            btn.classList.toggle('bg-slate-800', track.enabled);
+            icon.setAttribute('data-lucide', track.enabled ? 'video' : 'video-off');
+            
+            updateParticipantStatus(myId, myStream.getAudioTracks()[0].enabled, track.enabled);
+            broadcast({ type: 'mic-cam-status', mic: myStream.getAudioTracks()[0].enabled, cam: track.enabled });
+            refreshIcons();
+        }
+
+        async function handleScreenShare() {
+            if(myScreenStream) {
+                // Tắt share
+                myScreenStream.getTracks().forEach(t => t.stop());
+                myScreenStream = null;
+                // Quay lại webcam
+                replaceStreamInCalls(myStream);
+                document.getElementById('local-video').srcObject = myStream;
+                document.getElementById('screen-btn').classList.remove('bg-sky-600', 'text-white');
+                return;
+            }
+
+            try {
+                myScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                document.getElementById('local-video').srcObject = myScreenStream;
+                document.getElementById('screen-btn').classList.add('bg-sky-600', 'text-white');
+                
+                replaceStreamInCalls(myScreenStream);
+
+                myScreenStream.getVideoTracks()[0].onended = () => {
+                    handleScreenShare(); // Tự động dọn dẹp khi người dùng bấm "Stop sharing" của trình duyệt
+                };
+            } catch (err) {
+                console.error("Screen share error:", err);
+            }
+        }
+
+        function replaceStreamInCalls(newStream) {
+            Object.values(peerConnections).forEach(call => {
+                const videoTrack = newStream.getVideoTracks()[0];
+                const sender = call.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                if(sender) sender.replaceTrack(videoTrack);
+            });
+        }
+
+        /**
+         * 9. ÂM THANH TIẾNG MƯA
+         */
+        let isRainPlaying = false;
+        function toggleRainSound() {
+            const snd = document.getElementById('snd-rain');
+            const btn = document.getElementById('rain-toggle');
+            isRainPlaying = !isRainPlaying;
+            
+            if(isRainPlaying) {
+                snd.play();
+                btn.classList.add('text-sky-400');
+            } else {
+                snd.pause();
+                btn.classList.remove('text-sky-400');
+            }
+        }
+        document.getElementById('rain-vol').oninput = (e) => {
+            document.getElementById('snd-rain').volume = e.target.value;
+        };
+
+        /**
+         * 10. CHAT & UI
+         */
+        document.getElementById('chat-form').onsubmit = (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            if(!input.value) return;
+            
+            appendMessage('Bạn', input.value);
+            broadcast({ type: 'chat', user: myUserName, msg: input.value });
+            input.value = '';
+        };
+
+        function appendMessage(user, msg) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = "flex flex-col gap-1 fade-in";
+            div.innerHTML = `
+                <span class="text-[10px] font-bold text-slate-500 uppercase ml-2">${user}</span>
+                <div class="bg-slate-800 p-3 rounded-2xl border border-white/5 text-sm">
+                    ${msg}
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            
+            if(activeTab !== 'chat') {
+                document.getElementById('chat-notif').classList.remove('hidden');
+            }
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            ['chat', 'todo', 'users'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}-btn`).classList.remove('border-sky-500', 'bg-sky-500/5', 'text-sky-400');
+                document.getElementById(`tab-${t}-btn`).classList.add('border-transparent', 'text-slate-500');
+            });
+            
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}-btn`).classList.add('border-sky-500', 'bg-sky-500/5', 'text-sky-400');
+            document.getElementById(`tab-${tab}-btn`).classList.remove('border-transparent', 'text-slate-500');
+            
+            if(tab === 'chat') document.getElementById('chat-notif').classList.add('hidden');
+        }
+
+        function toggleSidebar(defaultTab) {
+            const sidebar = document.getElementById('main-sidebar');
+            if(sidebar.style.display === 'none') {
+                sidebar.style.display = 'flex';
+                if(defaultTab) switchTab(defaultTab);
+            } else {
+                sidebar.style.display = 'none';
+            }
+        }
+
+        function handleLeaveRoom() {
+            if(confirm("Bạn có chắc chắn muốn rời phòng học?")) {
+                location.reload();
+            }
+        }
+
+        function refreshIcons() {
+            lucide.createIcons();
+        }
+
+        // Khởi tạo các thành phần UI ban đầu
+        window.addEventListener('resize', resizeCanvas);
+        updateTimerUI();
+    </script>
+</body>
+</html>
