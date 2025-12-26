@@ -8,6 +8,9 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -33,7 +36,7 @@
         }
 
         /* Tối ưu hóa Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
@@ -97,13 +100,41 @@
             z-index: 200;
             display: none;
             flex-direction: column;
+            overflow: hidden; /* Chứa scroll bên trong */
+        }
+
+        /* Vùng cuộn cho bảng trắng */
+        #wb-scroll-area {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background-color: #f8fafc;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: crosshair;
         }
 
         canvas#whiteboard {
-            flex: 1;
-            cursor: crosshair;
-            background: #ffffff;
-            border-radius: 0 0 24px 24px;
+            display: block;
+            background: transparent;
+            /* Kích thước lớn cố định để cuộn */
+            width: 3000px;
+            height: 2000px; 
+        }
+
+        /* Popup nhập liệu Math/Text */
+        #math-input-popup {
+            position: absolute;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid #e2e8f0;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            width: 300px;
+            z-index: 300;
         }
 
         /* Hiệu ứng chuyển cảnh cho Sidebar */
@@ -256,23 +287,44 @@
             </div>
 
             <div id="whiteboard-container" class="shadow-2xl">
-                <div class="p-4 bg-slate-900 flex justify-between items-center border-b border-white/5 rounded-t-2xl">
+                <div class="p-4 bg-slate-900 flex justify-between items-center border-b border-white/5 rounded-t-2xl z-20 shadow-lg">
                     <div class="flex items-center gap-4">
-                        <span class="font-bold flex items-center gap-2 text-indigo-400"><i data-lucide="pencil-line" class="w-4 h-4"></i> BẢNG TRẮNG CHUNG</span>
+                        <span class="font-bold flex items-center gap-2 text-indigo-400"><i data-lucide="pencil-line" class="w-4 h-4"></i> BẢNG TRẮNG</span>
                         <div class="flex gap-2 bg-slate-800 p-1 rounded-lg">
                             <button onclick="setPenColor('#38bdf8')" class="w-6 h-6 rounded bg-sky-400"></button>
                             <button onclick="setPenColor('#ef4444')" class="w-6 h-6 rounded bg-red-500"></button>
                             <button onclick="setPenColor('#22c55e')" class="w-6 h-6 rounded bg-green-500"></button>
-                            <button onclick="setPenColor('#ffffff')" class="w-6 h-6 rounded bg-white"></button>
+                            <button onclick="setPenColor('#000000')" class="w-6 h-6 rounded bg-black border border-white/20"></button>
                         </div>
                         <input type="range" id="pen-size" min="1" max="10" value="3" class="w-20 accent-indigo-500">
+                        <button onclick="setTool('text')" id="tool-text-btn" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold flex items-center gap-1 transition">
+                            <i data-lucide="type" class="w-4 h-4"></i> Text/Math
+                        </button>
+                        <button onclick="setTool('draw')" id="tool-draw-btn" class="px-3 py-1 bg-indigo-600 rounded text-xs font-bold flex items-center gap-1 transition">
+                            <i data-lucide="edit-3" class="w-4 h-4"></i> Vẽ
+                        </button>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="clearWhiteboard()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg transition">XÓA BẢNG</button>
                         <button onclick="closeWhiteboard()" class="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition"><i data-lucide="x" class="w-5 h-5"></i></button>
                     </div>
                 </div>
-                <canvas id="whiteboard"></canvas>
+                
+                <div id="wb-scroll-area">
+                    <canvas id="whiteboard" width="3000" height="2000"></canvas>
+                    
+                    <div id="math-input-popup">
+                        <div class="flex justify-between items-center border-b pb-2 mb-2">
+                            <span class="text-xs font-bold text-slate-800">Nhập Văn Bản / Toán Học</span>
+                            <button onclick="closeMathPopup()" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
+                        </div>
+                        <textarea id="math-text-input" rows="3" class="w-full p-2 border rounded text-slate-800 text-sm focus:outline-none focus:border-indigo-500" placeholder="Nhập text hoặc LaTeX (ví dụ: \sqrt{x})"></textarea>
+                        <div class="flex gap-2 justify-end">
+                            <button onclick="insertMathToCanvas()" class="px-4 py-2 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-500">CHÈN VÀO BẢNG</button>
+                        </div>
+                        <div class="text-[10px] text-slate-500">Gợi ý: Dùng cú pháp LaTeX cho toán học. <br> VD: \frac{1}{2}, \pi, \sum</div>
+                    </div>
+                </div>
             </div>
 
             <div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 px-8 py-5 rounded-[2.5rem] glass border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[150]">
@@ -302,7 +354,7 @@
 
             <div id="tab-chat" class="flex-1 flex flex-col p-6 overflow-hidden">
                 <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-                    <div class="bg-slate-800/50 p-4 rounded-2xl border border-white/5 italic text-slate-400 text-xs text-center">Chào mừng bạn đến Study Hub Master. Hệ thống P2P đã sẵn sàng.</div>
+                    <div class="bg-slate-800/50 p-4 rounded-2xl border border-white/5 italic text-slate-400 text-xs text-center">Chào mừng bạn đến Study Hub Master.<br>Gõ <span class="text-sky-400 font-bold">/AI</span> để trò chuyện với trợ lý ảo.</div>
                 </div>
                 <form id="chat-form" class="relative group">
                     <input id="chat-input" type="text" placeholder="Gửi lời nhắn..." class="w-full bg-slate-800/50 border border-white/10 rounded-2xl px-5 py-4 pr-14 focus:outline-none focus:border-sky-500 transition-all font-medium text-sm">
@@ -383,12 +435,63 @@
         // Whiteboard State
         const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
+        const wbScrollArea = document.getElementById('wb-scroll-area');
         let isDrawing = false;
         let penColor = '#38bdf8';
         let penSize = 3;
+        let currentTool = 'draw'; // 'draw' | 'text'
+        let popupClickPos = {x: 0, y: 0};
+        
+        // Multiplayer Drawing Fix: Lưu vị trí cuối cùng của từng user
+        const lastPositions = {}; 
 
         // To-do State
         let todos = [];
+
+        // AI Bot State
+        let aiIdleTimer = null;
+        const AI_IDLE_TIMEOUT = 120000; // 2 phút không ai nói gì thì bot hỏi
+
+        /**
+         * AI BOT LOGIC
+         */
+        class MiniBot {
+            constructor() {
+                this.name = "AI Assistant";
+                this.greetings = ["Chào bạn! Chúc một buổi học hiệu quả nhé.", "Hi! Cần giúp gì cứ gọi mình nha.", "Hello! Sẵn sàng học tập chưa?"];
+                this.idleMsgs = ["Mọi người đâu hết rồi nhỉ? Im ắng quá 😅", "Đừng quên uống nước nha các bạn!", "Học mệt thì nhớ nghỉ giải lao xíu nhé.", "Có ai đang gặp bài khó không?"];
+                this.responses = {
+                    "chào": "Chào bạn! Rất vui được gặp.",
+                    "hello": "Hello! Chúc bạn ngày tốt lành.",
+                    "khỏe không": "Mình là AI nên lúc nào cũng full năng lượng! Còn bạn?",
+                    "mệt": "Cố lên nào! Nghỉ 5 phút rồi chiến tiếp.",
+                    "buồn": "Đừng buồn, việc học là tương lai mà!",
+                    "giờ": () => `Bây giờ là ${new Date().toLocaleTimeString()} rồi đó.`
+                };
+            }
+
+            process(msg) {
+                const lower = msg.toLowerCase();
+                for (let key in this.responses) {
+                    if (lower.includes(key)) {
+                        const resp = this.responses[key];
+                        return typeof resp === 'function' ? resp() : resp;
+                    }
+                }
+                return "Mình chưa hiểu ý bạn lắm, nhưng mình luôn ở đây để cổ vũ bạn!";
+            }
+
+            getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+        }
+        const bot = new MiniBot();
+
+        function resetAIIdleTimer() {
+            if(aiIdleTimer) clearTimeout(aiIdleTimer);
+            aiIdleTimer = setTimeout(() => {
+                const msg = bot.getRandom(bot.idleMsgs);
+                appendMessage(bot.name, msg, true);
+            }, AI_IDLE_TIMEOUT);
+        }
 
         /**
          * 1. HỆ THỐNG KHỞI TẠO (INIT)
@@ -404,7 +507,6 @@
             if(isHost) document.getElementById('local-tag-host').classList.remove('hidden');
 
             try {
-                // Lấy quyền webcam/mic trước khi kết nối Peer
                 myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('local-video').srcObject = myStream;
                 
@@ -427,7 +529,6 @@
                 host: '0.peerjs.com',
                 port: 443,
                 secure: true,
-                debug: 1
             });
 
             myPeer.on('open', (id) => {
@@ -441,15 +542,14 @@
                     connectToHost(document.getElementById('target-room-id').value.trim());
                 }
                 refreshIcons();
+                resetAIIdleTimer(); // Bắt đầu đếm ngược idle
             });
 
-            // Lắng nghe cuộc gọi (Media)
             myPeer.on('call', call => {
                 call.answer(myStream);
                 setupMediaConnection(call);
             });
 
-            // Lắng nghe kết nối dữ liệu (Data)
             myPeer.on('connection', conn => {
                 setupDataConnection(conn);
             });
@@ -464,11 +564,8 @@
          * 2. XỬ LÝ KẾT NỐI (NETWORKING)
          */
         function connectToHost(hostId) {
-            // 1. Gọi video
             const call = myPeer.call(hostId, myStream);
             setupMediaConnection(call);
-            
-            // 2. Kết nối dữ liệu
             const conn = myPeer.connect(hostId);
             setupDataConnection(conn);
         }
@@ -512,7 +609,6 @@
             dataConnections[peerId] = conn;
 
             conn.on('open', () => {
-                // Gửi thông tin cá nhân của mình cho người mới kết nối
                 sendToPeer(peerId, {
                     type: 'identity',
                     name: myUserName,
@@ -521,13 +617,14 @@
                 });
 
                 if(isHost) {
-                    // Nếu là host, gửi toàn bộ trạng thái phòng cho người mới
+                    // Sync trạng thái phòng, bao gồm cả ảnh bảng trắng
                     sendToPeer(peerId, {
                         type: 'full-sync',
                         timer: timerSeconds,
                         mode: currentMode,
                         todos: todos,
-                        participants: participants
+                        participants: participants,
+                        wbData: canvas.toDataURL() // Gửi ảnh bảng hiện tại
                     });
                 }
             });
@@ -550,6 +647,7 @@
                     break;
                 case 'chat':
                     appendMessage(data.user, data.msg);
+                    resetAIIdleTimer();
                     break;
                 case 'pomo-sync':
                     timerSeconds = data.timer;
@@ -564,9 +662,20 @@
                     renderParticipants();
                     renderTodos();
                     updateTimerUI();
+                    if(data.wbData) {
+                        const img = new Image();
+                        img.onload = () => ctx.drawImage(img, 0, 0);
+                        img.src = data.wbData;
+                    }
                     break;
                 case 'draw':
-                    drawOnCanvas(data.x, data.y, data.color, data.size, data.isNewPath);
+                    // Fix: Truyền peerId để vẽ đúng nét người đó
+                    drawOnCanvas(data.x, data.y, data.color, data.size, data.isNewPath, peerId);
+                    break;
+                case 'draw-image':
+                    const img = new Image();
+                    img.onload = () => ctx.drawImage(img, data.x, data.y);
+                    img.src = data.src;
                     break;
                 case 'clear-wb':
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -590,20 +699,18 @@
         }
 
         /**
-         * 4. QUẢN LÝ THÀNH VIÊN (PARTICIPANTS)
+         * 4. QUẢN LÝ THÀNH VIÊN
          */
         function updateParticipant(id, name, mic, cam, local = false) {
             participants[id] = { name, mic, cam, local };
             renderParticipants();
             
-            // Cập nhật nhãn tên trên video
             const nameLabel = document.getElementById(`name-${id}`);
             if(nameLabel) nameLabel.innerText = name;
             
             const avatarLabel = document.getElementById(`avatar-${id}`);
             if(avatarLabel) avatarLabel.innerText = name.substring(0,2).toUpperCase();
 
-            // Cập nhật trạng thái hiển thị
             updateParticipantStatus(id, mic, cam);
         }
 
@@ -626,6 +733,7 @@
 
         function removeParticipant(id) {
             delete participants[id];
+            delete lastPositions[id]; // Xóa vị trí vẽ của user
             renderParticipants();
         }
 
@@ -672,7 +780,6 @@
                 timerInterval = null;
                 btn.innerHTML = '<i data-lucide="play" class="w-5 h-5 fill-current"></i>';
             } else {
-                applyPomoConfig();
                 timerInterval = setInterval(() => {
                     timerSeconds--;
                     if(timerSeconds <= 0) {
@@ -681,7 +788,6 @@
                     updateTimerUI();
                     broadcast({ type: 'pomo-sync', timer: timerSeconds, mode: currentMode });
                     
-                    // Thống kê thời gian tập trung
                     if(currentMode === 'study' && timerSeconds % 60 === 0) {
                         totalFocusMinutes++;
                         document.getElementById('total-study-time').innerText = totalFocusMinutes + "P";
@@ -690,16 +796,6 @@
                 btn.innerHTML = '<i data-lucide="pause" class="w-5 h-5 fill-current"></i>';
             }
             refreshIcons();
-        }
-
-        function applyPomoConfig() {
-            const studyVal = parseInt(document.getElementById('cfg-study').value);
-            const breakVal = parseInt(document.getElementById('cfg-break').value);
-            
-            // Nếu timer đang ở trạng thái bắt đầu của mode hiện tại thì mới update
-            // (Ngăn việc nhảy thời gian khi đang đếm dở)
-            // Tuy nhiên, để linh hoạt, ta cho phép đồng bộ ngay
-            // timerSeconds = (currentMode === 'study') ? studyVal * 60 : breakVal * 60;
         }
 
         function handleTimerEnd() {
@@ -728,7 +824,7 @@
             if(currentMode === 'study') {
                 label.innerText = "HỌC TẬP";
                 label.className = "text-[8px] font-black tracking-widest uppercase text-sky-400";
-                container.classList.remove('pomo-pulse', 'border-green-500/50');
+                container.classList.remove('pomo-pulse');
             } else {
                 label.innerText = "NGHỈ GIẢI LAO";
                 label.className = "text-[8px] font-black tracking-widest uppercase text-green-400";
@@ -746,70 +842,171 @@
         }
 
         /**
-         * 6. WHITEBOARD LOGIC (DÙNG CHUNG)
+         * 6. WHITEBOARD ENGINE (NÂNG CẤP)
          */
-        function openWhiteboard() {
-            const wb = document.getElementById('whiteboard-container');
-            wb.style.display = 'flex';
-            resizeCanvas();
-        }
-
-        function closeWhiteboard() {
-            document.getElementById('whiteboard-container').style.display = 'none';
-        }
-
-        function resizeCanvas() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight - 60;
-        }
-
-        function setPenColor(color) { penColor = color; }
-        document.getElementById('pen-size').oninput = (e) => { penSize = e.target.value; };
-
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-
-        function startDrawing(e) {
-            isDrawing = true;
-            draw(e, true);
-        }
-
-        function draw(e, isNewPath = false) {
-            if (!isDrawing) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            drawOnCanvas(x, y, penColor, penSize, isNewPath);
-            broadcast({ type: 'draw', x, y, color: penColor, size: penSize, isNewPath });
-        }
-
-        function drawOnCanvas(x, y, color, size, isNewPath) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = size;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            if (isNewPath) {
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-                ctx.stroke();
+        
+        // Load lại ảnh cũ từ localStorage nếu có
+        function loadWB() {
+            const data = localStorage.getItem('wb_data');
+            if(data) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.src = data;
             }
         }
 
-        function stopDrawing() { isDrawing = false; }
+        function openWhiteboard() { 
+            document.getElementById('whiteboard-container').style.display = 'flex';
+            // Không reset canvas width/height ở đây nữa để giữ nội dung
+            // Load lại nếu cần thiết
+            loadWB();
+        }
+        
+        function closeWhiteboard() { 
+            // Lưu lại ảnh vào localStorage để không bị mất
+            localStorage.setItem('wb_data', canvas.toDataURL());
+            document.getElementById('whiteboard-container').style.display = 'none'; 
+        }
 
-        function clearWhiteboard() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            broadcast({ type: 'clear-wb' });
+        function setPenColor(color) { penColor = color; setTool('draw'); }
+        function setTool(tool) {
+            currentTool = tool;
+            if(tool === 'text') {
+                document.getElementById('tool-text-btn').classList.replace('bg-slate-700', 'bg-indigo-600');
+                document.getElementById('tool-draw-btn').classList.replace('bg-indigo-600', 'bg-slate-700');
+                canvas.style.cursor = 'text';
+            } else {
+                document.getElementById('tool-draw-btn').classList.replace('bg-slate-700', 'bg-indigo-600');
+                document.getElementById('tool-text-btn').classList.replace('bg-indigo-600', 'bg-slate-700');
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+
+        // Sự kiện chuột trên Canvas
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            // Tính toán tọa độ chính xác kể cả khi đã scroll
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            if (currentTool === 'text') {
+                popupClickPos = {x, y};
+                const popup = document.getElementById('math-input-popup');
+                popup.style.display = 'flex';
+                popup.style.left = e.clientX + 'px';
+                popup.style.top = e.clientY + 'px';
+                // Điều chỉnh nếu popup bị tràn màn hình
+                if(e.clientY + 200 > window.innerHeight) popup.style.top = (e.clientY - 200) + 'px';
+                document.getElementById('math-text-input').focus();
+            } else {
+                isDrawing = true;
+                drawOnCanvas(x, y, penColor, penSize, true, myId);
+                broadcast({ type: 'draw', x, y, color: penColor, size: penSize, isNewPath: true });
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if(!isDrawing || currentTool !== 'draw') return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            drawOnCanvas(x, y, penColor, penSize, false, myId);
+            broadcast({ type: 'draw', x, y, color: penColor, size: penSize, isNewPath: false });
+        });
+
+        canvas.addEventListener('mouseup', () => { 
+            isDrawing = false; 
+            localStorage.setItem('wb_data', canvas.toDataURL()); // Auto save khi thả chuột
+        });
+
+        // Hàm vẽ được tối ưu cho nhiều người dùng (tránh loạn nét)
+        function drawOnCanvas(x, y, color, size, isNewPath, userId) {
+            ctx.lineWidth = size;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = color;
+
+            // Nếu user này chưa có vị trí cũ, hoặc là nét mới -> StartPath
+            if (isNewPath || !lastPositions[userId]) {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            } else {
+                // Tiếp tục từ vị trí cuối cùng của user đó
+                ctx.beginPath();
+                ctx.moveTo(lastPositions[userId].x, lastPositions[userId].y);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+
+            // Cập nhật vị trí cuối cùng cho user này
+            lastPositions[userId] = { x, y };
+        }
+
+        function clearWhiteboard() { 
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            localStorage.removeItem('wb_data');
+            broadcast({ type: 'clear-wb' }); 
+        }
+
+        // --- XỬ LÝ TEXT & MATH ---
+        function closeMathPopup() {
+            document.getElementById('math-input-popup').style.display = 'none';
+            document.getElementById('math-text-input').value = '';
+        }
+
+        async function insertMathToCanvas() {
+            const input = document.getElementById('math-text-input').value;
+            if(!input) return;
+
+            const x = popupClickPos.x;
+            const y = popupClickPos.y;
+
+            // Sử dụng MathJax để chuyển text/latex thành SVG
+            const wrapper = document.createElement('div');
+            // Cấu hình options render
+            const options = MathJax.getMetricsFor(document.body);
+            
+            try {
+                // Render ra SVG Node
+                const svg = await MathJax.tex2svgPromise(input, options);
+                const svgElement = svg.querySelector('svg');
+                
+                // Đặt màu chữ (stroke/fill)
+                svgElement.setAttribute('fill', penColor);
+                svgElement.setAttribute('color', penColor);
+                
+                // Chuyển SVG thành XML string
+                const s = new XMLSerializer().serializeToString(svgElement);
+                // Tạo ảnh Base64 từ SVG
+                const imgSrc = 'data:image/svg+xml;base64,' + window.btoa(unescape(encodeURIComponent(s)));
+
+                const img = new Image();
+                img.onload = function() {
+                    // Vẽ ảnh lên canvas
+                    ctx.drawImage(img, x, y);
+                    // Broadcast cho người khác
+                    broadcast({ type: 'draw-image', src: imgSrc, x: x, y: y });
+                    localStorage.setItem('wb_data', canvas.toDataURL());
+                };
+                img.src = imgSrc;
+
+            } catch (err) {
+                console.error("MathJax error:", err);
+                // Fallback: Vẽ text thường nếu lỗi
+                ctx.font = "20px 'Plus Jakarta Sans'";
+                ctx.fillStyle = penColor;
+                ctx.fillText(input, x, y);
+            }
+
+            closeMathPopup();
         }
 
         /**
-         * 7. TO-DO LIST (DÙNG CHUNG)
+         * 7. TO-DO LIST
          */
         function addNewTodo() {
             const input = document.getElementById('todo-input');
@@ -860,7 +1057,7 @@
         }
 
         /**
-         * 8. MEDIA CONTROLS (MIC/CAM/SCREEN)
+         * 8. MEDIA CONTROLS
          */
         function handleMicToggle() {
             const track = myStream.getAudioTracks()[0];
@@ -896,10 +1093,8 @@
 
         async function handleScreenShare() {
             if(myScreenStream) {
-                // Tắt share
                 myScreenStream.getTracks().forEach(t => t.stop());
                 myScreenStream = null;
-                // Quay lại webcam
                 replaceStreamInCalls(myStream);
                 document.getElementById('local-video').srcObject = myStream;
                 document.getElementById('screen-btn').classList.remove('bg-sky-600', 'text-white');
@@ -914,7 +1109,7 @@
                 replaceStreamInCalls(myScreenStream);
 
                 myScreenStream.getVideoTracks()[0].onended = () => {
-                    handleScreenShare(); // Tự động dọn dẹp khi người dùng bấm "Stop sharing" của trình duyệt
+                    handleScreenShare();
                 };
             } catch (err) {
                 console.error("Screen share error:", err);
@@ -951,25 +1146,48 @@
         };
 
         /**
-         * 10. CHAT & UI
+         * 10. CHAT & AI
          */
         document.getElementById('chat-form').onsubmit = (e) => {
             e.preventDefault();
             const input = document.getElementById('chat-input');
-            if(!input.value) return;
+            const val = input.value.trim();
+            if(!val) return;
             
-            appendMessage('Bạn', input.value);
-            broadcast({ type: 'chat', user: myUserName, msg: input.value });
+            // Xử lý AI command
+            if (val.toLowerCase().startsWith('/ai')) {
+                appendMessage('Bạn', val); // Hiện tin nhắn gốc
+                const query = val.substring(3).trim();
+                if(!query) {
+                    appendMessage(bot.name, bot.getRandom(bot.greetings), true);
+                } else {
+                    // Giả lập AI suy nghĩ một chút
+                    setTimeout(() => {
+                        const reply = bot.process(query);
+                        appendMessage(bot.name, reply, true);
+                    }, 500);
+                }
+            } else {
+                // Chat bình thường
+                appendMessage('Bạn', val);
+                broadcast({ type: 'chat', user: myUserName, msg: val });
+            }
+
             input.value = '';
+            resetAIIdleTimer();
         };
 
-        function appendMessage(user, msg) {
+        function appendMessage(user, msg, isAI = false) {
             const container = document.getElementById('chat-messages');
             const div = document.createElement('div');
             div.className = "flex flex-col gap-1 fade-in";
+            
+            const colorClass = isAI ? "text-sky-400" : (user === 'Bạn' ? "text-yellow-500" : "text-slate-500");
+            const bgClass = isAI ? "bg-sky-500/10 border-sky-500/20" : "bg-slate-800 border-white/5";
+
             div.innerHTML = `
-                <span class="text-[10px] font-bold text-slate-500 uppercase ml-2">${user}</span>
-                <div class="bg-slate-800 p-3 rounded-2xl border border-white/5 text-sm">
+                <span class="text-[10px] font-bold uppercase ml-2 ${colorClass}">${user}</span>
+                <div class="${bgClass} p-3 rounded-2xl border text-sm">
                     ${msg}
                 </div>
             `;
@@ -1017,7 +1235,6 @@
         }
 
         // Khởi tạo các thành phần UI ban đầu
-        window.addEventListener('resize', resizeCanvas);
         updateTimerUI();
     </script>
 </body>
